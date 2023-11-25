@@ -57,72 +57,79 @@ func main() {
 }
 
 func buildTree() *tview.TreeView {
-	rootNode := tview.NewTreeNode("GitLab Pipelines").
-		SetColor(tcell.ColorYellow).
-		SetSelectable(false)
+    root := tview.NewTreeNode("GitLab Pipelines").
+        SetColor(tcell.ColorYellow).
+        SetSelectable(false)
 
-	tree := tview.NewTreeView().
-		SetRoot(rootNode).
-		SetCurrentNode(rootNode).
-		SetTopLevel(1).
-		SetGraphicsColor(tcell.ColorGreen)
+    tree := tview.NewTreeView().
+        SetRoot(root).
+        SetCurrentNode(root).
+        SetTopLevel(1).
+        SetGraphicsColor(tcell.ColorGreen)
 
-	tree.SetSelectedFunc(func(node *tview.TreeNode) {
-		// Handle selection logic here
-		projectName := node.GetText()
-		if strings.HasPrefix(projectName, "Project: ") {
-			projectID := strings.TrimPrefix(projectName, "Project: ")
-			showPipelines(projectID)
-		}
-	})
+    tree.SetSelectedFunc(func(node *tview.TreeNode) {
+        // Handle selection logic here
+        projectName := node.GetText()
+        if strings.HasPrefix(projectName, "Project: ") {
+            showPipelines(node)
+        }
+    })
 
-	rootNode.AddChild(buildGroups())
+    root.AddChild(buildGroups())
 
-	return tree
+    return tree
 }
 
 func buildGroups() *tview.TreeNode {
-	root := tview.NewTreeNode("Groups").
-		SetColor(tcell.ColorYellow)
+    root := tview.NewTreeNode("Groups").
+        SetColor(tcell.ColorYellow)
 
-	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
-	if err != nil {
-		fmt.Println("Error fetching groups:", err)
-		return root
-	}
+    groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
+    if err != nil {
+        fmt.Println("Error fetching groups:", err)
+        return root
+    }
 
-	for _, group := range groups {
-		groupNode := tview.NewTreeNode("Group: " + group.Name).
-			SetColor(tcell.ColorWhite)
-		root.AddChild(groupNode)
+    for _, group := range groups {
+        groupNode := tview.NewTreeNode("Group: " + group.Name).
+            SetColor(tcell.ColorWhite)
+        root.AddChild(groupNode)
 
-		projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
-		if err != nil {
-			fmt.Println("Error fetching projects for group", group.Name, ":", err)
-			continue
-		}
+        projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
+        if err != nil {
+            fmt.Println("Error fetching projects for group", group.Name, ":", err)
+            continue
+        }
 
-		for _, project := range projects {
-			projectNode := tview.NewTreeNode("Project: " + project.Name).
-				SetColor(tcell.ColorBlue)
-			groupNode.AddChild(projectNode)
-		}
-	}
+        for _, project := range projects {
+            projectNode := tview.NewTreeNode("Project: " + project.Name).
+                SetColor(tcell.ColorBlue).
+                SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
+            groupNode.AddChild(projectNode)
+        }
+    }
 
-	return root
+    return root
 }
 
-func showPipelines(projectID string) {
-	// Fetch and display pipeline information for the selected project
-	// Example: https://pkg.go.dev/github.com/xanzy/go-gitlab#PipelinesService.ListProjectPipelines
+func showPipelines(projectNode *tview.TreeNode) {
+    // Extract the project ID from the reference
+    projectID, ok := projectNode.GetReference().(string)
+    if !ok {
+        fmt.Println("Invalid project reference")
+        return
+    }
 
-	projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{})
-	if err != nil {
-		fmt.Println("Error fetching pipelines for project", projectID, ":", err)
-		return
-	}
+    // Fetch and display pipeline information for the selected project
+    // Example: https://pkg.go.dev/github.com/xanzy/go-gitlab#PipelinesService.ListProjectPipelines
 
-	for _, pipeline := range projectPipelines {
-		fmt.Printf("Pipeline ID: %d, Status: %s\n", pipeline.ID, pipeline.Status)
-	}
+    projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{})
+    if err != nil {
+        fmt.Println("Error fetching pipelines for project", projectID, ":", err)
+        return
+    }
+
+    for _, pipeline := range projectPipelines {
+        fmt.Printf("Pipeline ID: %d, Status: %s\n", pipeline.ID, pipeline.Status)
+    }
 }
