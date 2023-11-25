@@ -165,7 +165,6 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 }
 
 func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
-	// Fetch and display pipeline information for the selected project and branch
 	projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{
 		Ref: &branch,
 	})
@@ -174,32 +173,36 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 		return
 	}
 
-	// Create a new tview.List to display pipeline information
 	pipelineList := tview.NewList().ShowSecondaryText(false)
 
 	for _, pipeline := range projectPipelines {
-		// Format pipeline information as a string
 		pipelineInfo := fmt.Sprintf("Pipeline ID: %d \nStatus: %s \nRef: %s \nSource: %s \nUpdated At: %s \n",
 			pipeline.ID, pipeline.Status, pipeline.Ref, pipeline.Source, pipeline.UpdatedAt.Format("2006-01-02 15:04:05"))
 
-		// Add the pipeline information to the list
 		pipelineList.AddItem(pipelineInfo, "", 0, func() {
-			// Pass the 'app' parameter explicitly to the fetchAndShowJobs function
-			fetchAndShowJobs(app, projectID, fmt.Sprintf("%d", pipeline.ID), pipeline.Ref)
+			fetchAndShowJobs(app, projectID, fmt.Sprintf("%d", pipeline.ID), branch)
 		})
 	}
 
-	// Set the selected function for the pipeline list
-	pipelineList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
-		// Handle selection logic here if needed
+	// Define a function to return to the group tree view
+	returnToGroupTree := func() {
+		app.SetRoot(buildTree(app), true)
+	}
+
+	pipelineList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEsc {
+			returnToGroupTree()
+			return nil
+		}
+		return event
 	})
 
-	// Create a new flex container to hold the list
 	flex := tview.NewFlex().
-		AddItem(pipelineList, 0, 1, false)
+		SetDirection(tview.FlexRow).
+		AddItem(pipelineList, 0, 1, true).
+		AddItem(tview.NewButton("Back").SetSelectedFunc(returnToGroupTree), 1, 0, false)
 
-	// Set the root of the application to the flex container
-	app.SetRoot(flex, true).SetFocus(pipelineList)
+	app.SetRoot(flex, true).SetFocus(flex)
 }
 
 func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineName string) {
