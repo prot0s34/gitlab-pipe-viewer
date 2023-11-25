@@ -123,7 +123,11 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
     // Fetch and display pipeline information for the selected project
     // Example: https://pkg.go.dev/github.com/xanzy/go-gitlab#PipelinesService.ListProjectPipelines
 
-    projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{})
+    ref := "main" // Replace with the branch or ref you are interested in
+
+    projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{
+        Ref: &ref,
+    })
     if err != nil {
         fmt.Println("Error fetching pipelines for project", projectID, ":", err)
         return
@@ -134,7 +138,9 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 
     for _, pipeline := range projectPipelines {
         // Format pipeline information as a string
-        pipelineInfo := fmt.Sprintf("Pipeline ID: %d, Status: %s", pipeline.ID, pipeline.Status)
+        pipelineInfo := fmt.Sprintf("Pipeline ID: %d \nStatus: %s \nRef: %s \nSource: %s \nUpdated At: %s \n",
+            pipeline.ID, pipeline.Status, pipeline.Ref, pipeline.Source, pipeline.UpdatedAt.Format("2006-01-02 15:04:05"))
+
         // Add the pipeline information to the list
         pipelineList.AddItem(pipelineInfo, "", 0, nil)
     }
