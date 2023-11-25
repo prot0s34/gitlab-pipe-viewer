@@ -57,103 +57,147 @@ func main() {
 }
 
 func buildTree(app *tview.Application) *tview.TreeView {
-    root := tview.NewTreeNode("GitLab Pipelines").
-        SetColor(tcell.ColorYellow).
-        SetSelectable(false)
+	root := tview.NewTreeNode("GitLab Pipelines").
+		SetColor(tcell.ColorYellow).
+		SetSelectable(false)
 
-    tree := tview.NewTreeView().
-        SetRoot(root).
-        SetCurrentNode(root).
-        SetTopLevel(1).
-        SetGraphicsColor(tcell.ColorGreen)
+	tree := tview.NewTreeView().
+		SetRoot(root).
+		SetCurrentNode(root).
+		SetTopLevel(1).
+		SetGraphicsColor(tcell.ColorGreen)
 
-    tree.SetSelectedFunc(func(node *tview.TreeNode) {
-        // Handle selection logic here
-        projectName := node.GetText()
-        if strings.HasPrefix(projectName, "Project: ") {
-            showPipelines(app, node)
-        }
-    })
+	tree.SetSelectedFunc(func(node *tview.TreeNode) {
+		// Handle selection logic here
+		projectName := node.GetText()
+		if strings.HasPrefix(projectName, "Project: ") {
+			showPipelines(app, node)
+		}
+	})
 
-    root.AddChild(buildGroups())
+	root.AddChild(buildGroups())
 
-    return tree
+	return tree
 }
 
 func buildGroups() *tview.TreeNode {
-    root := tview.NewTreeNode("Groups").
-        SetColor(tcell.ColorYellow)
+	root := tview.NewTreeNode("Groups").
+		SetColor(tcell.ColorYellow)
 
-    groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
-    if err != nil {
-        fmt.Println("Error fetching groups:", err)
-        return root
-    }
+	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
+	if err != nil {
+		fmt.Println("Error fetching groups:", err)
+		return root
+	}
 
-    for _, group := range groups {
-        groupNode := tview.NewTreeNode("Group: " + group.Name).
-            SetColor(tcell.ColorWhite)
-        root.AddChild(groupNode)
+	for _, group := range groups {
+		groupNode := tview.NewTreeNode("Group: " + group.Name).
+			SetColor(tcell.ColorWhite)
+		root.AddChild(groupNode)
 
-        projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
-        if err != nil {
-            fmt.Println("Error fetching projects for group", group.Name, ":", err)
-            continue
-        }
+		projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
+		if err != nil {
+			fmt.Println("Error fetching projects for group", group.Name, ":", err)
+			continue
+		}
 
-        for _, project := range projects {
-            projectNode := tview.NewTreeNode("Project: " + project.Name).
-                SetColor(tcell.ColorBlue).
-                SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
-            groupNode.AddChild(projectNode)
-        }
-    }
+		for _, project := range projects {
+			projectNode := tview.NewTreeNode("Project: " + project.Name).
+				SetColor(tcell.ColorBlue).
+				SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
+			groupNode.AddChild(projectNode)
+		}
+	}
 
-    return root
+	return root
 }
 
 func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
-    // Extract the project ID from the reference
-    projectID, ok := projectNode.GetReference().(string)
-    if !ok {
-        fmt.Println("Invalid project reference")
-        return
-    }
+	// Extract the project ID from the reference
+	projectID, ok := projectNode.GetReference().(string)
+	if !ok {
+		fmt.Println("Invalid project reference")
+		return
+	}
 
-    // Fetch and display pipeline information for the selected project
-    // Example: https://pkg.go.dev/github.com/xanzy/go-gitlab#PipelinesService.ListProjectPipelines
+	// Fetch branches for the selected project
+	branches, _, err := gitlabClient.Branches.ListBranches(projectID, &gitlab.ListBranchesOptions{})
+	if err != nil {
+		fmt.Println("Error fetching branches for project", projectID, ":", err)
+		return
+	}
 
-    ref := "main" // Replace with the branch or ref you are interested in
+	// Create a new modal to select the branch
+	var modal *tview.Modal // Declare modal outside SetDoneFunc
+	modal = tview.NewModal().
+		SetText("Select Branch").
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			if buttonIndex >= 0 && buttonIndex < len(branches) {
+				// User selected a branch, fetch pipelines for that branch
+				selectedBranch := branches[buttonIndex].Name
+				fetchAndShowPipelines(app, projectID, selectedBranch)
+			} else {
+				// User closed the modal without selecting a branch
+				app.SetFocus(modal) // Focus on the modal
+			}
+		})
 
-    projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{
-        Ref: &ref,
-    })
-    if err != nil {
-        fmt.Println("Error fetching pipelines for project", projectID, ":", err)
-        return
-    }
+		// Add buttons for each branch
+	var buttons []string
+	for _, branch := range branches {
+		branchName := branch.Name
+		buttons = append(buttons, fmt.Sprintf("%s", branchName))
+	}
 
-    // Create a new tview.List to display pipeline information
-    pipelineList := tview.NewList().ShowSecondaryText(false)
+	// Add a cancel button
+	buttons = append(buttons, "Cancel")
 
-    for _, pipeline := range projectPipelines {
-        // Format pipeline information as a string
-        pipelineInfo := fmt.Sprintf("Pipeline ID: %d \nStatus: %s \nRef: %s \nSource: %s \nUpdated At: %s \n",
-            pipeline.ID, pipeline.Status, pipeline.Ref, pipeline.Source, pipeline.UpdatedAt.Format("2006-01-02 15:04:05"))
+	// Set the buttons for the modal
+	modal.AddButtons(buttons)
 
-        // Add the pipeline information to the list
-        pipelineList.AddItem(pipelineInfo, "", 0, nil)
-    }
+	// Set the root of the application to the modal
+	app.SetRoot(modal, true).SetFocus(modal) // Add buttons for each branch
+}
 
-    // Set the selected function for the pipeline list
-    pipelineList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
-        // Handle selection logic here if needed
-    })
+func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
+	// Fetch and display pipeline information for the selected project and branch
+	projectPipelines, _, err := gitlabClient.Pipelines.ListProjectPipelines(projectID, &gitlab.ListProjectPipelinesOptions{
+		Ref: &branch,
+	})
+	if err != nil {
+		fmt.Println("Error fetching pipelines for project", projectID, "and branch", branch, ":", err)
+		return
+	}
 
-    // Create a new flex container to hold the list
-    flex := tview.NewFlex().
-        AddItem(pipelineList, 0, 1, false)
+	// Create a new tview.List to display pipeline information
+	pipelineList := tview.NewList().ShowSecondaryText(false)
 
-    // Set the root of the application to the flex container
-    app.SetRoot(flex, true).SetFocus(pipelineList)
+	for _, pipeline := range projectPipelines {
+		// Format pipeline information as a string
+		pipelineInfo := fmt.Sprintf("Pipeline ID: %d \nStatus: %s \nRef: %s \nSource: %s \nUpdated At: %s \n",
+			pipeline.ID, pipeline.Status, pipeline.Ref, pipeline.Source, pipeline.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+		// Add the pipeline information to the list
+		pipelineList.AddItem(pipelineInfo, "", 0, nil)
+	}
+
+	// Set the selected function for the pipeline list
+	pipelineList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
+		// Handle selection logic here if needed
+	})
+
+	// Create a new flex container to hold the list
+	flex := tview.NewFlex().
+		AddItem(pipelineList, 0, 1, false)
+
+	// Set the root of the application to the flex container
+	app.SetRoot(flex, true).SetFocus(pipelineList)
+}
+
+func getBranchNames(branches []*gitlab.Branch) []string {
+	var branchNames []string
+	for _, branch := range branches {
+		branchNames = append(branchNames, branch.Name)
+	}
+	return branchNames
 }
