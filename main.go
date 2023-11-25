@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -44,9 +45,12 @@ func init() {
 		os.Exit(1)
 	}
 
+	//  debug purposes
+	fmt.Println("Connecting to Instance:", gitlabURL)
 	for _, group := range groups {
 		fmt.Println("Group:", group.Name)
 	}
+
 }
 
 func main() {
@@ -199,35 +203,41 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 }
 
 func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineName string) {
-	// Fetch and display job information for the selected project and pipeline
 	pipelineJobs, _, err := gitlabClient.Jobs.ListPipelineJobs(projectID, toInt(pipelineID), &gitlab.ListJobsOptions{})
 	if err != nil {
 		fmt.Println("Error fetching jobs for project", projectID, "and pipeline", pipelineID, ":", err)
 		return
 	}
 
-	// Create a new tview.List to display job information
 	jobList := tview.NewList().ShowSecondaryText(false)
 
 	for _, job := range pipelineJobs {
-		// Format job information as a string
-		jobInfo := fmt.Sprintf("Job ID: %d \nName: %s \nStatus: %s",
-			job.ID, job.Name, job.Status)
-
-		// Add the job information to the list
+		jobInfo := fmt.Sprintf("Job ID: %d \nName: %s \nStatus: %s", job.ID, job.Name, job.Status)
 		jobList.AddItem(jobInfo, "", 0, nil)
 	}
 
-	// Set the selected function for the job list (if needed)
-	jobList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
-		// Handle selection logic here if needed
+	jobList.SetSelectedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
+		selectedJob := pipelineJobs[index]
+
+		jobActionModal := tview.NewModal().
+			SetText(fmt.Sprintf("Select Action for Job %d", selectedJob.ID)).
+			AddButtons([]string{"Logs", "Retry", "Cancel"}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+				switch buttonLabel {
+				case "Logs":
+					fetchAndDisplayJobLogs(app, projectID, strconv.Itoa(selectedJob.ID))
+				case "Retry":
+					retryJob(app, projectID, strconv.Itoa(selectedJob.ID))
+				case "Cancel":
+					newFlex := tview.NewFlex().AddItem(jobList, 0, 1, false)
+					app.SetRoot(newFlex, true).SetFocus(jobList)
+				}
+			})
+
+		app.SetRoot(jobActionModal, false).SetFocus(jobActionModal)
 	})
 
-	// Create a new flex container to hold the list
-	flex := tview.NewFlex().
-		AddItem(jobList, 0, 1, false)
-
-	// Set the root of the application to the flex container
+	flex := tview.NewFlex().AddItem(jobList, 0, 1, false)
 	app.SetRoot(flex, true).SetFocus(jobList)
 }
 
@@ -237,4 +247,38 @@ func toInt(s string) int {
 		return 0
 	}
 	return i
+}
+
+// Display logs in a modal or a new view
+func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string) {
+	logsReader, _, err := gitlabClient.Jobs.GetTraceFile(projectID, toInt(jobID))
+	if err != nil {
+		fmt.Println("Error fetching logs:", err)
+		return
+	}
+
+	logs, err := io.ReadAll(logsReader)
+	if err != nil {
+		fmt.Println("Error reading logs:", err)
+		return
+	}
+
+	logView := tview.NewTextView().
+		SetText(string(logs)).
+		SetScrollable(true).
+		SetDynamicColors(true).
+		SetRegions(true).
+		SetWordWrap(true)
+
+	app.SetRoot(logView, true).SetFocus(logView)
+}
+
+func retryJob(app *tview.Application, projectID, jobID string) {
+	_, _, err := gitlabClient.Jobs.RetryJob(projectID, toInt(jobID))
+	if err != nil {
+		fmt.Println("Error retrying job:", err)
+		return
+	}
+
+	fmt.Println("Job retried successfully")
 }
