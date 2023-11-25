@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -178,7 +179,10 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 			pipeline.ID, pipeline.Status, pipeline.Ref, pipeline.Source, pipeline.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 		// Add the pipeline information to the list
-		pipelineList.AddItem(pipelineInfo, "", 0, nil)
+		pipelineList.AddItem(pipelineInfo, "", 0, func() {
+			// Pass the 'app' parameter explicitly to the fetchAndShowJobs function
+			fetchAndShowJobs(app, projectID, fmt.Sprintf("%d", pipeline.ID), pipeline.Ref)
+		})
 	}
 
 	// Set the selected function for the pipeline list
@@ -194,10 +198,43 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 	app.SetRoot(flex, true).SetFocus(pipelineList)
 }
 
-func getBranchNames(branches []*gitlab.Branch) []string {
-	var branchNames []string
-	for _, branch := range branches {
-		branchNames = append(branchNames, branch.Name)
+func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineName string) {
+	// Fetch and display job information for the selected project and pipeline
+	pipelineJobs, _, err := gitlabClient.Jobs.ListPipelineJobs(projectID, toInt(pipelineID), &gitlab.ListJobsOptions{})
+	if err != nil {
+		fmt.Println("Error fetching jobs for project", projectID, "and pipeline", pipelineID, ":", err)
+		return
 	}
-	return branchNames
+
+	// Create a new tview.List to display job information
+	jobList := tview.NewList().ShowSecondaryText(false)
+
+	for _, job := range pipelineJobs {
+		// Format job information as a string
+		jobInfo := fmt.Sprintf("Job ID: %d \nName: %s \nStatus: %s",
+			job.ID, job.Name, job.Status)
+
+		// Add the job information to the list
+		jobList.AddItem(jobInfo, "", 0, nil)
+	}
+
+	// Set the selected function for the job list (if needed)
+	jobList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
+		// Handle selection logic here if needed
+	})
+
+	// Create a new flex container to hold the list
+	flex := tview.NewFlex().
+		AddItem(jobList, 0, 1, false)
+
+	// Set the root of the application to the flex container
+	app.SetRoot(flex, true).SetFocus(jobList)
+}
+
+func toInt(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return i
 }
