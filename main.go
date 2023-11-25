@@ -51,12 +51,12 @@ func init() {
 func main() {
 	app := tview.NewApplication()
 
-	if err := app.SetRoot(buildTree(), true).Run(); err != nil {
+	if err := app.SetRoot(buildTree(app), true).Run(); err != nil {
 		fmt.Println("Error:", err)
 	}
 }
 
-func buildTree() *tview.TreeView {
+func buildTree(app *tview.Application) *tview.TreeView {
     root := tview.NewTreeNode("GitLab Pipelines").
         SetColor(tcell.ColorYellow).
         SetSelectable(false)
@@ -71,7 +71,7 @@ func buildTree() *tview.TreeView {
         // Handle selection logic here
         projectName := node.GetText()
         if strings.HasPrefix(projectName, "Project: ") {
-            showPipelines(node)
+            showPipelines(app, node)
         }
     })
 
@@ -112,7 +112,7 @@ func buildGroups() *tview.TreeNode {
     return root
 }
 
-func showPipelines(projectNode *tview.TreeNode) {
+func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
     // Extract the project ID from the reference
     projectID, ok := projectNode.GetReference().(string)
     if !ok {
@@ -129,7 +129,25 @@ func showPipelines(projectNode *tview.TreeNode) {
         return
     }
 
+    // Create a new tview.List to display pipeline information
+    pipelineList := tview.NewList().ShowSecondaryText(false)
+
     for _, pipeline := range projectPipelines {
-        fmt.Printf("Pipeline ID: %d, Status: %s\n", pipeline.ID, pipeline.Status)
+        // Format pipeline information as a string
+        pipelineInfo := fmt.Sprintf("Pipeline ID: %d, Status: %s", pipeline.ID, pipeline.Status)
+        // Add the pipeline information to the list
+        pipelineList.AddItem(pipelineInfo, "", 0, nil)
     }
+
+    // Set the selected function for the pipeline list
+    pipelineList.SetSelectedFunc(func(index int, _ string, _ string, _ rune) {
+        // Handle selection logic here if needed
+    })
+
+    // Create a new flex container to hold the list
+    flex := tview.NewFlex().
+        AddItem(pipelineList, 0, 1, false)
+
+    // Set the root of the application to the flex container
+    app.SetRoot(flex, true).SetFocus(pipelineList)
 }
