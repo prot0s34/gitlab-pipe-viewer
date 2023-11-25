@@ -224,27 +224,44 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 			AddButtons([]string{"Logs", "Retry", "Cancel"})
 
 		// Define a function to return to this modal
-		returnToJobActionModal := func() {
-			app.SetRoot(jobActionModal, false).SetFocus(jobActionModal)
+		returnToJobList := func() {
+			app.SetRoot(jobList, false).SetFocus(jobList)
 		}
 
 		jobActionModal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 			switch buttonLabel {
 			case "Logs":
-				fetchAndDisplayJobLogs(app, projectID, strconv.Itoa(selectedJob.ID), returnToJobActionModal)
+				fetchAndDisplayJobLogs(app, projectID, strconv.Itoa(selectedJob.ID), returnToJobList)
 			case "Retry":
 				retryJob(app, projectID, strconv.Itoa(selectedJob.ID))
+				returnToJobList()
 			case "Cancel":
-				newFlex := tview.NewFlex().AddItem(jobList, 0, 1, false)
-				app.SetRoot(newFlex, true).SetFocus(jobList)
+				returnToJobList()
 			}
 		})
 
 		app.SetRoot(jobActionModal, false).SetFocus(jobActionModal)
 	})
 
-	flex := tview.NewFlex().AddItem(jobList, 0, 1, false)
-	app.SetRoot(flex, true).SetFocus(jobList)
+	jobList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEsc {
+			returnToPipelineList := func() {
+				fetchAndShowPipelines(app, projectID, pipelineName)
+			}
+			returnToPipelineList()
+			return nil
+		}
+		return event
+	})
+
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(jobList, 0, 1, true).
+		AddItem(tview.NewButton("Back").SetSelectedFunc(func() {
+			fetchAndShowPipelines(app, projectID, pipelineName)
+		}), 1, 0, false)
+
+	app.SetRoot(flex, true).SetFocus(flex)
 }
 
 func toInt(s string) int {
