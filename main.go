@@ -221,18 +221,24 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 
 		jobActionModal := tview.NewModal().
 			SetText(fmt.Sprintf("Select Action for Job %d", selectedJob.ID)).
-			AddButtons([]string{"Logs", "Retry", "Cancel"}).
-			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				switch buttonLabel {
-				case "Logs":
-					fetchAndDisplayJobLogs(app, projectID, strconv.Itoa(selectedJob.ID))
-				case "Retry":
-					retryJob(app, projectID, strconv.Itoa(selectedJob.ID))
-				case "Cancel":
-					newFlex := tview.NewFlex().AddItem(jobList, 0, 1, false)
-					app.SetRoot(newFlex, true).SetFocus(jobList)
-				}
-			})
+			AddButtons([]string{"Logs", "Retry", "Cancel"})
+
+		// Define a function to return to this modal
+		returnToJobActionModal := func() {
+			app.SetRoot(jobActionModal, false).SetFocus(jobActionModal)
+		}
+
+		jobActionModal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			switch buttonLabel {
+			case "Logs":
+				fetchAndDisplayJobLogs(app, projectID, strconv.Itoa(selectedJob.ID), returnToJobActionModal)
+			case "Retry":
+				retryJob(app, projectID, strconv.Itoa(selectedJob.ID))
+			case "Cancel":
+				newFlex := tview.NewFlex().AddItem(jobList, 0, 1, false)
+				app.SetRoot(newFlex, true).SetFocus(jobList)
+			}
+		})
 
 		app.SetRoot(jobActionModal, false).SetFocus(jobActionModal)
 	})
@@ -249,8 +255,8 @@ func toInt(s string) int {
 	return i
 }
 
-// Display logs in a modal or a new view
-func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string) {
+// Display logs in a modal or a new view and add a 'Back' option to return to the job action modal
+func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string, returnToModal func()) {
 	logsReader, _, err := gitlabClient.Jobs.GetTraceFile(projectID, toInt(jobID))
 	if err != nil {
 		fmt.Println("Error fetching logs:", err)
@@ -270,7 +276,23 @@ func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string) {
 		SetRegions(true).
 		SetWordWrap(true)
 
-	app.SetRoot(logView, true).SetFocus(logView)
+	// Define input capture for logView to handle specific key press
+	logView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEsc {
+			// Call the returnToModal function when Esc key is pressed
+			returnToModal()
+			return nil // returning nil prevents further handling of this key event
+		}
+		return event // return the event to continue with the default behavior
+	})
+
+	// Adding a flex container to include a 'Back' button along with logView
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(logView, 0, 1, true).
+		AddItem(tview.NewButton("Back").SetSelectedFunc(returnToModal), 1, 0, false)
+
+	app.SetRoot(flex, true).SetFocus(flex)
 }
 
 func retryJob(app *tview.Application, projectID, jobID string) {
