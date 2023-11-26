@@ -16,6 +16,7 @@ import (
 var (
 	gitlabClient *gitlab.Client
 	token        string
+	gitlabURL    string
 )
 
 func init() {
@@ -25,7 +26,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	gitlabURL := os.Getenv("GITLAB_URL")
+	gitlabURL = os.Getenv("GITLAB_URL")
 	if gitlabURL == "" {
 		gitlabURL = "https://gitlab.com"
 	}
@@ -86,7 +87,7 @@ func buildTree(app *tview.Application) *tview.TreeView {
 }
 
 func buildGroups() *tview.TreeNode {
-	root := tview.NewTreeNode("Groups").
+	root := tview.NewTreeNode("Groups - Instance: " + gitlabURL).
 		SetColor(tcell.ColorYellow)
 
 	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
