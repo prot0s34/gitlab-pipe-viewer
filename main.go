@@ -57,12 +57,42 @@ func init() {
 func main() {
 	app := tview.NewApplication()
 
-	if err := app.SetRoot(buildTree(app), true).Run(); err != nil {
+	modal := tview.NewModal().
+		SetText("Choose an Option").
+		AddButtons([]string{"List all groups", "Search group by name"}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+			switch buttonLabel {
+			case "List all groups":
+				app.SetRoot(buildTree(app, ""), true)
+			case "Search group by name":
+				showGroupSearchInput(app)
+			}
+		})
+
+	if err := app.SetRoot(modal, false).Run(); err != nil {
 		fmt.Println("Error:", err)
 	}
 }
 
-func buildTree(app *tview.Application) *tview.TreeView {
+func showGroupSearchInput(app *tview.Application) {
+	inputField := tview.NewInputField().
+		SetLabel("Enter Group Name: ")
+
+	inputField.SetDoneFunc(func(key tcell.Key) {
+		if key == tcell.KeyEnter {
+			searchTerm := inputField.GetText()
+			app.SetRoot(buildTree(app, searchTerm), true)
+		}
+	})
+
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(inputField, 0, 1, true)
+
+	app.SetRoot(flex, true).SetFocus(inputField)
+}
+
+func buildTree(app *tview.Application, searchTerm string) *tview.TreeView {
 	root := tview.NewTreeNode("GitLab Pipelines").
 		SetColor(tcell.ColorYellow).
 		SetSelectable(false)
@@ -81,12 +111,12 @@ func buildTree(app *tview.Application) *tview.TreeView {
 		}
 	})
 
-	root.AddChild(buildGroups())
+	root.AddChild(buildGroups(searchTerm))
 
 	return tree
 }
 
-func buildGroups() *tview.TreeNode {
+func buildGroups(searchTerm string) *tview.TreeNode {
 	root := tview.NewTreeNode("󰮠 Instance: " + gitlabURL).
 		SetColor(tcell.ColorOrangeRed)
 
@@ -97,21 +127,23 @@ func buildGroups() *tview.TreeNode {
 	}
 
 	for _, group := range groups {
-		groupNode := tview.NewTreeNode(" Group: " + group.Name).
-			SetColor(tcell.ColorWhiteSmoke)
-		root.AddChild(groupNode)
+		if searchTerm == "" || strings.Contains(strings.ToLower(group.Name), strings.ToLower(searchTerm)) {
+			groupNode := tview.NewTreeNode(" Group: " + group.Name).
+				SetColor(tcell.ColorWhiteSmoke)
+			root.AddChild(groupNode)
 
-		projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
-		if err != nil {
-			fmt.Println("Error fetching projects for group", group.Name, ":", err)
-			continue
-		}
+			projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
+			if err != nil {
+				fmt.Println("Error fetching projects for group", group.Name, ":", err)
+				continue
+			}
 
-		for _, project := range projects {
-			projectNode := tview.NewTreeNode("Project: " + project.Name).
-				SetColor(tcell.ColorDarkGrey).
-				SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
-			groupNode.AddChild(projectNode)
+			for _, project := range projects {
+				projectNode := tview.NewTreeNode("Project: " + project.Name).
+					SetColor(tcell.ColorDarkGrey).
+					SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
+				groupNode.AddChild(projectNode)
+			}
 		}
 	}
 
@@ -187,7 +219,7 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 
 	// Define a function to return to the group tree view
 	returnToGroupTree := func() {
-		app.SetRoot(buildTree(app), true)
+		app.SetRoot(buildTree(app, ""), true)
 	}
 
 	pipelineList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
