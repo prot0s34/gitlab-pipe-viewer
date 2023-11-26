@@ -164,7 +164,10 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 	}
 
 	// Create a drop-down for branches
-	dropDown := tview.NewDropDown().SetLabel("Select branch: ")
+	dropDown := tview.NewDropDown().
+		SetLabel("Select branch: ").
+		SetFieldBackgroundColor(tcell.ColorDarkGray).
+		SetFieldTextColor(tcell.ColorOrangeRed)
 	for _, branch := range branches {
 		dropDown.AddOption(branch.Name, nil)
 	}
