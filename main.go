@@ -226,7 +226,7 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(pipelineList, 0, 1, true).
-		AddItem(tview.NewButton("Back").SetSelectedFunc(returnToGroupTree), 1, 0, false)
+		AddItem(tview.NewButton("ESC - Back").SetSelectedFunc(returnToGroupTree), 1, 0, false)
 
 	app.SetRoot(flex, true).SetFocus(flex)
 }
@@ -286,7 +286,7 @@ func rebuildJobListView(app *tview.Application, pipelineJobs []*gitlab.Job, proj
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(jobList, 0, 1, true).
-		AddItem(tview.NewButton("Back").SetSelectedFunc(func() {
+		AddItem(tview.NewButton("ESC - Back").SetSelectedFunc(func() {
 			fetchAndShowPipelines(app, projectID, pipelineName)
 		}), 1, 0, false)
 
@@ -336,7 +336,7 @@ func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string, ret
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(logView, 0, 1, true).
-		AddItem(tview.NewButton("Back").SetSelectedFunc(returnToModal), 1, 0, false)
+		AddItem(tview.NewButton("ESC - Back").SetSelectedFunc(returnToModal), 1, 0, false)
 
 	app.SetRoot(flex, true).SetFocus(flex)
 }
