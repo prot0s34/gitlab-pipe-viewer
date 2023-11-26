@@ -40,17 +40,17 @@ func init() {
 	}
 
 	// Fetch and display some data using the gitlabClient variable
-	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
-	if err != nil {
-		fmt.Println("Error fetching groups:", err)
-		os.Exit(1)
-	}
+	// groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
+	// if err != nil {
+	//	fmt.Println("Error fetching groups:", err)
+	//	os.Exit(1)
+	// }
 
 	//  debug purposes
 	fmt.Println("Connecting to Instance:", gitlabURL)
-	for _, group := range groups {
-		fmt.Println("Group:", group.Name)
-	}
+	//for _, group := range groups {
+	//	fmt.Println("Group:", group.Name)
+	//}
 
 }
 
@@ -101,7 +101,7 @@ func buildTree(app *tview.Application, searchTerm string) *tview.TreeView {
 		SetRoot(root).
 		SetCurrentNode(root).
 		SetTopLevel(1).
-		SetGraphicsColor(tcell.ColorGreen)
+		SetGraphicsColor(tcell.ColorOrange)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		// Handle selection logic here
@@ -151,50 +151,40 @@ func buildGroups(searchTerm string) *tview.TreeNode {
 }
 
 func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
-	// Extract the project ID from the reference
 	projectID, ok := projectNode.GetReference().(string)
 	if !ok {
 		fmt.Println("Invalid project reference")
 		return
 	}
 
-	// Fetch branches for the selected project
 	branches, _, err := gitlabClient.Branches.ListBranches(projectID, &gitlab.ListBranchesOptions{})
 	if err != nil {
 		fmt.Println("Error fetching branches for project", projectID, ":", err)
 		return
 	}
 
-	// Create a new modal to select the branch
-	var modal *tview.Modal // Declare modal outside SetDoneFunc
-	modal = tview.NewModal().
-		SetText("Select Branch").
-		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-			if buttonIndex >= 0 && buttonIndex < len(branches) {
-				// User selected a branch, fetch pipelines for that branch
-				selectedBranch := branches[buttonIndex].Name
-				fetchAndShowPipelines(app, projectID, selectedBranch)
-			} else {
-				// User closed the modal without selecting a branch
-				app.SetFocus(modal) // Focus on the modal
-			}
-		})
-
-		// Add buttons for each branch
-	var buttons []string
+	// Create a drop-down for branches
+	dropDown := tview.NewDropDown().SetLabel("Select branch: ")
 	for _, branch := range branches {
-		branchName := branch.Name
-		buttons = append(buttons, fmt.Sprintf("%s", branchName))
+		dropDown.AddOption(branch.Name, nil)
 	}
 
-	// Add a cancel button
-	buttons = append(buttons, "Cancel")
+	// Function to handle branch selection
+	handleBranchSelection := func(option string, optionIndex int) {
+		selectedBranch := branches[optionIndex].Name
+		fetchAndShowPipelines(app, projectID, selectedBranch)
+	}
 
-	// Set the buttons for the modal
-	modal.AddButtons(buttons)
+	dropDown.SetSelectedFunc(handleBranchSelection)
 
-	// Set the root of the application to the modal
-	app.SetRoot(modal, true).SetFocus(modal) // Add buttons for each branch
+	// Create a modal-like layout with the drop-down
+	flex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(tview.NewBox().SetBorder(false).SetBackgroundColor(tcell.ColorDefault), 0, 1, false).
+		AddItem(dropDown, 0, 1, true).
+		AddItem(tview.NewBox().SetBorder(false).SetBackgroundColor(tcell.ColorDefault), 0, 1, false)
+
+	app.SetRoot(flex, true).SetFocus(dropDown)
 }
 
 func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
