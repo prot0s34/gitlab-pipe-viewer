@@ -212,6 +212,10 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 		return
 	}
 
+	app.SetRoot(rebuildJobListView(app, pipelineJobs, projectID, pipelineName), true)
+}
+
+func rebuildJobListView(app *tview.Application, pipelineJobs []*gitlab.Job, projectID, pipelineName string) *tview.Flex {
 	jobList := tview.NewList().ShowSecondaryText(false)
 
 	for _, job := range pipelineJobs {
@@ -226,9 +230,8 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 			SetText(fmt.Sprintf("Select Action for Job %d", selectedJob.ID)).
 			AddButtons([]string{"Logs", "Retry", "Cancel"})
 
-		// Define a function to return to this modal
 		returnToJobList := func() {
-			app.SetRoot(jobList, false).SetFocus(jobList)
+			app.SetRoot(rebuildJobListView(app, pipelineJobs, projectID, pipelineName), true)
 		}
 
 		jobActionModal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
@@ -248,10 +251,7 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 
 	jobList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
-			returnToPipelineList := func() {
-				fetchAndShowPipelines(app, projectID, pipelineName)
-			}
-			returnToPipelineList()
+			fetchAndShowPipelines(app, projectID, pipelineName)
 			return nil
 		}
 		return event
@@ -264,7 +264,7 @@ func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineNam
 			fetchAndShowPipelines(app, projectID, pipelineName)
 		}), 1, 0, false)
 
-	app.SetRoot(flex, true).SetFocus(flex)
+	return flex
 }
 
 func toInt(s string) int {
