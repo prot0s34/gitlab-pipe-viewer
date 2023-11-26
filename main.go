@@ -87,8 +87,8 @@ func buildTree(app *tview.Application) *tview.TreeView {
 }
 
 func buildGroups() *tview.TreeNode {
-	root := tview.NewTreeNode("Groups - Instance: " + gitlabURL).
-		SetColor(tcell.ColorYellow)
+	root := tview.NewTreeNode("󰮠 Instance: " + gitlabURL).
+		SetColor(tcell.ColorOrangeRed)
 
 	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
 	if err != nil {
@@ -97,8 +97,8 @@ func buildGroups() *tview.TreeNode {
 	}
 
 	for _, group := range groups {
-		groupNode := tview.NewTreeNode("Group: " + group.Name).
-			SetColor(tcell.ColorWhite)
+		groupNode := tview.NewTreeNode(" Group: " + group.Name).
+			SetColor(tcell.ColorWhiteSmoke)
 		root.AddChild(groupNode)
 
 		projects, _, err := gitlabClient.Groups.ListGroupProjects(group.ID, &gitlab.ListGroupProjectsOptions{})
@@ -109,7 +109,7 @@ func buildGroups() *tview.TreeNode {
 
 		for _, project := range projects {
 			projectNode := tview.NewTreeNode("Project: " + project.Name).
-				SetColor(tcell.ColorBlue).
+				SetColor(tcell.ColorDarkGrey).
 				SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
 			groupNode.AddChild(projectNode)
 		}
