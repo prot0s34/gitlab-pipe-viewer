@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	gitlabClient *gitlab.Client
-	token        string
-	gitlabURL    string
+	gitlabClient   *gitlab.Client
+	token          string
+	gitlabURL      string
+	lastSearchTerm string
 )
 
 func init() {
@@ -81,6 +82,7 @@ func showGroupSearchInput(app *tview.Application) {
 	inputField.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			searchTerm := inputField.GetText()
+			lastSearchTerm = searchTerm // Store the search term
 			app.SetRoot(buildTree(app, searchTerm), true)
 		}
 	})
@@ -120,13 +122,30 @@ func buildGroups(searchTerm string) *tview.TreeNode {
 	root := tview.NewTreeNode("󰮠 Instance: " + gitlabURL).
 		SetColor(tcell.ColorOrangeRed)
 
-	groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
-	if err != nil {
-		fmt.Println("Error fetching groups:", err)
-		return root
+	var allGroups []*gitlab.Group
+	listOptions := &gitlab.ListGroupsOptions{
+		ListOptions: gitlab.ListOptions{
+			PerPage: 100, // Set the number of items per page
+			Page:    1,
+		},
 	}
 
-	for _, group := range groups {
+	for {
+		groups, resp, err := gitlabClient.Groups.ListGroups(listOptions)
+		if err != nil {
+			fmt.Println("Error fetching groups:", err)
+			return root
+		}
+
+		allGroups = append(allGroups, groups...)
+
+		if resp.CurrentPage >= resp.TotalPages {
+			break
+		}
+		listOptions.Page = resp.NextPage
+	}
+
+	for _, group := range allGroups {
 		if searchTerm == "" || strings.Contains(strings.ToLower(group.Name), strings.ToLower(searchTerm)) {
 			groupNode := tview.NewTreeNode(" Group: " + group.Name).
 				SetColor(tcell.ColorWhiteSmoke)
@@ -210,14 +229,9 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 		})
 	}
 
-	// Define a function to return to the group tree view
-	returnToGroupTree := func() {
-		app.SetRoot(buildTree(app, ""), true)
-	}
-
 	pipelineList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
-			returnToGroupTree()
+			app.SetRoot(buildTree(app, lastSearchTerm), true) // Use lastSearchTerm
 			return nil
 		}
 		return event
@@ -226,9 +240,11 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(pipelineList, 0, 1, true).
-		AddItem(tview.NewButton("ESC - Back").SetSelectedFunc(returnToGroupTree), 1, 0, false)
+		AddItem(tview.NewButton("ESC - Back").SetSelectedFunc(func() {
+			app.SetRoot(buildTree(app, ""), true)
+		}), 1, 0, false)
 
-	app.SetRoot(flex, true).SetFocus(flex)
+	app.SetRoot(flex, true).SetFocus(pipelineList)
 }
 
 func fetchAndShowJobs(app *tview.Application, projectID, pipelineID, pipelineName string) {
