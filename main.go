@@ -40,18 +40,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	// Fetch and display some data using the gitlabClient variable
-	// groups, _, err := gitlabClient.Groups.ListGroups(&gitlab.ListGroupsOptions{})
-	// if err != nil {
-	//	fmt.Println("Error fetching groups:", err)
-	//	os.Exit(1)
-	// }
-
-	//  debug purposes
 	fmt.Println("Connecting to Instance:", gitlabURL)
-	//for _, group := range groups {
-	//	fmt.Println("Group:", group.Name)
-	//}
 
 }
 
