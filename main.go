@@ -71,7 +71,7 @@ func showGroupSearchInput(app *tview.Application) {
 	inputField.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			searchTerm := inputField.GetText()
-			lastSearchTerm = searchTerm // Store the search term
+			lastSearchTerm = searchTerm
 			app.SetRoot(buildTree(app, searchTerm), true)
 		}
 	})
@@ -95,7 +95,6 @@ func buildTree(app *tview.Application, searchTerm string) *tview.TreeView {
 		SetGraphicsColor(tcell.ColorOrange)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
-		// Handle selection logic here
 		projectName := node.GetText()
 		if strings.HasPrefix(projectName, "Project: ") {
 			showPipelines(app, node)
@@ -114,7 +113,7 @@ func buildGroups(searchTerm string) *tview.TreeNode {
 	var allGroups []*gitlab.Group
 	listOptions := &gitlab.ListGroupsOptions{
 		ListOptions: gitlab.ListOptions{
-			PerPage: 100, // Set the number of items per page
+			PerPage: 100,
 			Page:    1,
 		},
 	}
@@ -149,7 +148,7 @@ func buildGroups(searchTerm string) *tview.TreeNode {
 			for _, project := range projects {
 				projectNode := tview.NewTreeNode("Project: " + project.Name).
 					SetColor(tcell.ColorDarkGrey).
-					SetReference(fmt.Sprintf("%d", project.ID)) // Convert project ID to string
+					SetReference(fmt.Sprintf("%d", project.ID))
 				groupNode.AddChild(projectNode)
 			}
 		}
@@ -171,7 +170,6 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 		return
 	}
 
-	// Create a drop-down for branches
 	dropDown := tview.NewDropDown().
 		SetLabel("Select branch: ").
 		SetFieldBackgroundColor(tcell.ColorDarkGray).
@@ -180,7 +178,6 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 		dropDown.AddOption(branch.Name, nil)
 	}
 
-	// Function to handle branch selection
 	handleBranchSelection := func(option string, optionIndex int) {
 		selectedBranch := branches[optionIndex].Name
 		fetchAndShowPipelines(app, projectID, selectedBranch)
@@ -188,7 +185,6 @@ func showPipelines(app *tview.Application, projectNode *tview.TreeNode) {
 
 	dropDown.SetSelectedFunc(handleBranchSelection)
 
-	// Create a modal-like layout with the drop-down
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(tview.NewBox().SetBorder(false).SetBackgroundColor(tcell.ColorDefault), 0, 1, false).
@@ -220,7 +216,7 @@ func fetchAndShowPipelines(app *tview.Application, projectID, branch string) {
 
 	pipelineList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
-			app.SetRoot(buildTree(app, lastSearchTerm), true) // Use lastSearchTerm
+			app.SetRoot(buildTree(app, lastSearchTerm), true)
 			return nil
 		}
 		return event
@@ -306,7 +302,6 @@ func toInt(s string) int {
 	return i
 }
 
-// Display logs in a modal or a new view and add a 'Back' option to return to the job action modal
 func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string, returnToModal func()) {
 	logsReader, _, err := gitlabClient.Jobs.GetTraceFile(projectID, toInt(jobID))
 	if err != nil {
@@ -327,17 +322,14 @@ func fetchAndDisplayJobLogs(app *tview.Application, projectID, jobID string, ret
 		SetRegions(true).
 		SetWordWrap(true)
 
-	// Define input capture for logView to handle specific key press
 	logView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
-			// Call the returnToModal function when Esc key is pressed
 			returnToModal()
-			return nil // returning nil prevents further handling of this key event
+			return nil
 		}
-		return event // return the event to continue with the default behavior
+		return event
 	})
 
-	// Adding a flex container to include a 'Back' button along with logView
 	flex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(logView, 0, 1, true).
